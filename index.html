@@ -4,7 +4,46 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>S4K Mixer V2</title>
+    
+    <!--
+    ╔══════════════════════════════════════════════════════════════════╗
+    ║  S4K MIXER - VERSION HISTORY                                     ║
+    ╠══════════════════════════════════════════════════════════════════╣
+    ║                                                                  ║
+    ║  v1.0 - Initial MVP                                              ║
+    ║    • Basic mixer functionality with Web Audio API                ║
+    ║    • Hardcoded character data with MD5 hash filenames            ║
+    ║    • Single flat asset folder (Sprunki/)                         ║
+    ║    • Desktop-focused layout                                      ║
+    ║                                                                  ║
+    ║  v2.0 - Config-Driven Refactor (Current)                         ║
+    ║    • External config.json for character definitions              ║
+    ║    • Organized asset structure: assets/audio/, assets/img/       ║
+    ║    • Human-readable filenames (b01.wav instead of MD5 hashes)    ║
+    ║    • Character names displayed in palette labels                 ║
+    ║    • Mobile-first responsive design (Fire Tablet optimized)      ║
+    ║    • Touch-friendly controls with visual feedback                ║
+    ║    • Play/Pause button (green) + Reset button (red pill)         ║
+    ║    • Category color-coding (yellow/purple/red/blue)              ║
+    ║    • Landscape and portrait orientation support                  ║
+    ║    • Easy character addition via config.json only                ║
+    ║                                                                  ║
+    ║  Adding New Characters:                                          ║
+    ║    1. Drop audio file in assets/audio/ (e.g., b06.wav)           ║
+    ║    2. Drop image file in assets/img/ (e.g., b06.svg)             ║
+    ║    3. Add entry to config.json characters array:                 ║
+    ║       { "id": "b06", "name": "Aqua", "type": "beats",            ║
+    ║         "audio": "b06.wav", "img": "b06.svg" }                   ║
+    ║    4. Refresh browser - no code changes needed!                  ║
+    ║                                                                  ║
+    ╚══════════════════════════════════════════════════════════════════╝
+    -->
+    
     <style>
+        /* ============================================================
+           S4K V2 STYLES - Mobile First
+           ============================================================ */
+        
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         
         body { 
@@ -24,7 +63,9 @@
             letter-spacing: 2px;
         }
         
-        /* Controls - Centered Row */
+        /* ------------------------------------------------------------
+           Controls - Play + Reset Buttons
+           ------------------------------------------------------------ */
         .controls { 
             display: flex; 
             justify-content: center; 
@@ -34,7 +75,7 @@
             padding: 0 10px;
         }
         
-        /* Play/Pause - Circle */
+        /* Play/Pause - Green Circle */
         .btn-play { 
             width: 70px; 
             height: 70px; 
@@ -56,7 +97,7 @@
             box-shadow: 0 4px 15px rgba(243, 156, 18, 0.4);
         }
         
-        /* Reset - Pill with Icon + Text */
+        /* Reset - Red Pill with Icon + Text */
         .btn-reset { 
             height: 50px;
             padding: 0 20px;
@@ -77,7 +118,9 @@
         .btn-reset:active { transform: scale(0.95); }
         .btn-reset .icon { font-size: 1.2rem; }
         
-        /* Stage */
+        /* ------------------------------------------------------------
+           Stage - Where active characters appear
+           ------------------------------------------------------------ */
         .stage { 
             display: flex; 
             justify-content: center; 
@@ -126,7 +169,9 @@
             50% { box-shadow: 0 0 16px rgba(0, 243, 255, 0.7); } 
         }
         
-        /* Palette */
+        /* ------------------------------------------------------------
+           Palette - Character selection grid
+           ------------------------------------------------------------ */
         .palette { 
             display: grid; 
             grid-template-columns: repeat(5, 1fr); 
@@ -168,20 +213,26 @@
         }
         .char-box img { 
             width: 80%; 
-            height: 65%; 
+            height: 60%; 
             object-fit: contain; 
             pointer-events: none; 
         }
         .char-label { 
             font-size: 8px; 
-            color: #888; 
-            margin-top: 3px; 
+            color: #aaa; 
+            margin-top: 2px; 
             font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.3px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
         }
         
-        /* Loading/Error */
+        /* ------------------------------------------------------------
+           Loading & Error States
+           ------------------------------------------------------------ */
         .loading { 
             grid-column: 1 / -1;
             padding: 30px; 
@@ -195,7 +246,11 @@
             border-radius: 10px; 
         }
         
-        /* Mobile Portrait */
+        /* ------------------------------------------------------------
+           Responsive Breakpoints
+           ------------------------------------------------------------ */
+        
+        /* Small phones */
         @media (max-width: 400px) {
             .palette { grid-template-columns: repeat(4, 1fr); }
             .slot { width: 55px; height: 70px; }
@@ -203,7 +258,7 @@
             .btn-reset { height: 44px; padding: 0 16px; font-size: 0.9rem; }
         }
         
-        /* Landscape */
+        /* Landscape mode */
         @media (orientation: landscape) and (max-height: 500px) {
             h1 { font-size: 1.1rem; margin: 5px 0 8px; }
             .controls { gap: 12px; margin-bottom: 10px; }
@@ -216,7 +271,7 @@
             .char-label { font-size: 7px; }
         }
         
-        /* Tablet Landscape */
+        /* Tablet */
         @media (min-width: 700px) {
             .palette { 
                 grid-template-columns: repeat(5, 1fr); 
@@ -225,6 +280,7 @@
             }
             .stage { max-width: 600px; }
             .slot { width: 70px; height: 85px; }
+            .char-label { font-size: 9px; }
         }
     </style>
 </head>
@@ -248,7 +304,17 @@
     </div>
 
     <script>
-        // S4K V2 - Config-Driven Mixer
+        /*
+         * S4K MIXER V2 - Main Application Script
+         * 
+         * Features:
+         * - Config-driven character loading from config.json
+         * - Web Audio API with gapless looping
+         * - AudioContext resume on user interaction (browser requirement)
+         * - Dynamic UI generation from config
+         * 
+         * Dependencies: None (vanilla JS)
+         */
         
         let config = null;
         let audioCtx = null;
@@ -256,6 +322,10 @@
         let isPlaying = false;
         const SLOT_COUNT = 7;
         
+        /**
+         * Initialize the application
+         * Loads config.json and builds the UI
+         */
         async function init() {
             try {
                 const response = await fetch('./config.json');
@@ -275,6 +345,9 @@
             }
         }
         
+        /**
+         * Build the stage with empty slots
+         */
         function buildStage() {
             const stage = document.getElementById('stage');
             stage.innerHTML = '';
@@ -288,33 +361,41 @@
             }
         }
         
+        /**
+         * Build the character palette from config
+         * Groups characters by category and displays with names
+         */
         function buildPalette() {
             const palette = document.getElementById('palette');
             palette.innerHTML = '';
             
+            // Group characters by type
             const byType = {};
             config.characters.forEach(char => {
                 if (!byType[char.type]) byType[char.type] = [];
                 byType[char.type].push(char);
             });
             
+            // Render each category
             config.categories.forEach(cat => {
                 if (!byType[cat.id]) return;
                 
+                // Category header
                 const header = document.createElement('div');
                 header.className = 'cat-header';
                 header.textContent = cat.label;
                 header.style.borderBottomColor = cat.color;
                 palette.appendChild(header);
                 
+                // Character boxes - now showing name instead of id
                 byType[cat.id].forEach(char => {
                     const box = document.createElement('div');
                     box.className = 'char-box';
                     box.style.borderBottomColor = cat.color;
                     box.innerHTML = `
-                        <img src="${config.paths.img}${char.img}" alt="${char.id}" 
+                        <img src="${config.paths.img}${char.img}" alt="${char.name}" 
                              onerror="this.style.opacity='0.3'">
-                        <span class="char-label">${char.id}</span>
+                        <span class="char-label">${char.name}</span>
                     `;
                     box.onclick = () => addToStage(char);
                     palette.appendChild(box);
@@ -322,11 +403,18 @@
             });
         }
         
+        /**
+         * Setup control button event handlers
+         */
         function setupControls() {
             document.getElementById('playBtn').onclick = togglePlay;
             document.getElementById('resetBtn').onclick = clearStage;
         }
         
+        /**
+         * Get or create AudioContext
+         * Handles browser autoplay restrictions
+         */
         function getAudioContext() {
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -337,6 +425,9 @@
             return audioCtx;
         }
         
+        /**
+         * Toggle play/pause state for all active sounds
+         */
         function togglePlay() {
             const ctx = getAudioContext();
             isPlaying = !isPlaying;
@@ -353,9 +444,14 @@
             }
         }
         
+        /**
+         * Add a character to the stage
+         * @param {Object} char - Character object from config
+         */
         async function addToStage(char) {
             const ctx = getAudioContext();
             
+            // Find first empty slot
             const slots = document.querySelectorAll('.slot');
             let emptySlot = null;
             for (const slot of slots) {
@@ -364,12 +460,14 @@
                     break;
                 }
             }
-            if (!emptySlot) return;
+            if (!emptySlot) return; // Stage full
             
-            emptySlot.innerHTML = `<img src="${config.paths.img}${char.img}" alt="${char.id}">`;
+            // Update visual
+            emptySlot.innerHTML = `<img src="${config.paths.img}${char.img}" alt="${char.name}">`;
             emptySlot.classList.add('active');
             emptySlot.dataset.charId = char.id;
             
+            // Load and play audio
             try {
                 const response = await fetch(`${config.paths.audio}${char.audio}`);
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -385,6 +483,7 @@
                 
                 activeSources[emptySlot.id] = source;
                 
+                // Sync with current play state
                 if (!isPlaying) ctx.suspend();
                 
             } catch (err) {
@@ -394,20 +493,29 @@
             }
         }
         
+        /**
+         * Remove a character from a slot
+         * @param {number} index - Slot index (0-6)
+         */
         function removeFromSlot(index) {
             const slotId = `slot-${index}`;
             const slot = document.getElementById(slotId);
             
+            // Stop audio if playing
             if (activeSources[slotId]) {
                 activeSources[slotId].stop();
                 delete activeSources[slotId];
             }
             
+            // Reset visual
             slot.innerHTML = '+';
             slot.classList.remove('active');
             delete slot.dataset.charId;
         }
         
+        /**
+         * Clear all characters from stage
+         */
         function clearStage() {
             for (let i = 0; i < SLOT_COUNT; i++) {
                 removeFromSlot(i);
@@ -419,6 +527,7 @@
             if (audioCtx) audioCtx.resume();
         }
         
+        // Start the app
         init();
     </script>
 </body>
